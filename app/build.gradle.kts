@@ -62,6 +62,7 @@ dependencies {
     // Lifecycle
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.compose.material)
 
     // Coroutines
     implementation(libs.coroutines.android)

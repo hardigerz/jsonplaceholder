@@ -2,6 +2,7 @@ package com.testhar.jsonplaceholder.ui.presentation.users
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.testhar.jsonplaceholder.domain.common.AppResult
 import com.testhar.jsonplaceholder.domain.usecase.GetUsersUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,34 +17,46 @@ class UsersViewModel @Inject constructor(
     private val getUsers: GetUsersUseCase
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(UserState(isLoading = true))
+    private val _uiState = MutableStateFlow<UserState>(UserState.Loading)
     val uiState: StateFlow<UserState> = _uiState.asStateFlow()
 
     init {
-        fetchUsers()
+        fetchUsers(initial = true)
     }
 
-    fun fetchUsers() {
-        viewModelScope.launch {
-            _uiState.value = UserState(isLoading = true)
+    fun retry() {
+        fetchUsers(initial = true)
+    }
 
-            try {
-                val users = getUsers()
-                _uiState.value = UserState(
-                    isLoading = false,
-                    data = users,
-                    errorMessage = null
-                )
-            } catch (e: Exception) {
-                val msg = when (e) {
-                    is IOException -> "Koneksi bermasalah. Coba lagi."
-                    else -> "Terjadi error: ${e.message ?: "Unknown"}"
+    fun refresh() {
+        fetchUsers(initial = false)
+    }
+
+    private fun fetchUsers(initial: Boolean) {
+        viewModelScope.launch {
+            val current = _uiState.value
+
+            if (initial) {
+                _uiState.value = UserState.Loading
+            } else {
+                // Refresh: kalau sudah success, tetap tampilkan data sambil refreshing
+                if (current is UserState.Success) {
+                    _uiState.value = current.copy(isRefreshing = true)
+                } else {
+                    _uiState.value = UserState.Loading
                 }
-                _uiState.value = UserState(
-                    isLoading = false,
-                    data = emptyList(),
-                    errorMessage = msg
-                )
+            }
+
+            when (val result = getUsers()) {
+                is AppResult.Success -> {
+                    _uiState.value = UserState.Success(
+                        data = result.data,
+                        isRefreshing = false
+                    )
+                }
+                is AppResult.Error -> {
+                    _uiState.value = UserState.Error(result.message)
+                }
             }
         }
     }
